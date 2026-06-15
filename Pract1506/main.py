@@ -2,6 +2,7 @@ import requests
 import matplotlib.pyplot as plt
 import datetime
 import openpyxl
+import os
 import json
 import re
 import random
@@ -12,7 +13,20 @@ from openpyxl.styles import Alignment
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 
-HH_API_URL = "https://api.hh.ru/vacancies"
+HH_API_URL = "https://hh.ru"
+CACHE_FILE = "vacancy_cache.json"
+
+def load_cache():
+    """Загружает сохраненные данные из файла"""
+    if os.path.exists(CACHE_FILE):
+        with open(CACHE_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {}
+
+def save_cache(cache_data):
+    """Сохраняет данные в файл, чтобы они не терялись"""
+    with open(CACHE_FILE, 'w', encoding='utf-8') as f:
+        json.dump(cache_data, f, ensure_ascii=False, indent=4)
 
 def generate_mock_vacancies(keyword, count=20):
     print(f"⚠️ API заблокировано (403). Включен режим генерации тестовых данных для '{keyword}'...")
@@ -77,7 +91,6 @@ def fetch_vacancies(keyword, pages=2):
             response = requests.get(HH_API_URL, params=params, headers=headers, timeout=5)
 
             if response.status_code == 403:
-                # Если поймали 403 на любой странице, сразу переключаемся на генератор
                 return generate_mock_vacancies(keyword)
 
             if response.status_code != 200:
@@ -139,14 +152,12 @@ def save_to_exel(vacancies, keyword):
     ws = wb.active
     ws.title = "Вакансии"
 
-    # Теперь колонка 'Зарплата' одна
     header = ['Название', 'Зарплата', 'Город', 'Работодатель', 'Дата публикации', 'Требования']
     ws.append(header)
 
     for vacancy in vacancies:
         salary = vacancy.get('salary')
 
-        # Форматируем зарплату в одну строку через дефис
         if salary:
             s_from = salary.get('from')
             s_to = salary.get('to')
@@ -165,7 +176,7 @@ def save_to_exel(vacancies, keyword):
 
         row = [
             vacancy.get('name', ''),
-            salary_text,  # Красивая единая строка зарплаты
+            salary_text,
             vacancy.get('city', ''),
             vacancy.get('employer', ''),
             vacancy.get('published_at', ''),
@@ -173,16 +184,14 @@ def save_to_exel(vacancies, keyword):
         ]
         ws.append(row)
 
-    # Автоматическая настройка ширины и перенос текста
     for col in ws.columns:
         max_length = 0
         col_letter = get_column_letter(col[0].column)
 
         for cell in col:
-            # Для колонки "Требования" (она у нас 6-я по счету, то есть 'F') делаем перенос текста
             if col_letter == 'F' and cell.row > 1:
                 cell.alignment = Alignment(wrap_text=True, vertical='top')
-                continue  # Не учитываем длину текста требований в общей авто-ширине
+                continue
 
             try:
                 if cell.value and len(str(cell.value)) > max_length:
@@ -190,7 +199,6 @@ def save_to_exel(vacancies, keyword):
             except:
                 pass
 
-        # Задаем ширину: для требований фиксируем 40 (с переносом), для остальных — авторазмер
         if col_letter == 'F':
             ws.column_dimensions[col_letter].width = 40
         else:
@@ -203,31 +211,31 @@ def get_top_skills(vacancies, top_n=5):
     words = []
     for vac in vacancies:
         requirement = vac.get('requirement') or ''
-        # Ищем технологии на латинице (включая C++, C#, .NET)
         tech_words = re.findall(r'\b[a-zA-Z]+(?:[+#]{1,2}|\.net)?\b', requirement, re.IGNORECASE)
         words.extend([word.upper() for word in tech_words])
 
     counter = Counter(words)
     return counter.most_common(top_n)
 
-def get_graph(data, keyword):
+def get_graph(vacancies, keyword):
     names = []
     salaries = []
 
-    for vac in data:
+    for vac in vacancies:
         salary = vac.get('salary')
         if salary and salary.get('from'):
             label = f"{vac.get('name')} \n({vac.get('employer')})"
             names.append(label)
             salaries.append(salary.get('from'))
 
-    names = names[:8]
-    salaries = salaries[:8]
+    names = names[:7]
+    salaries = salaries[:7]
 
-    plt.figure(figsize=(8, 4))
+    plt.figure(figsize=(12, 6))
     plt.bar(names, salaries, color='#4A90E2')
     plt.title(f"Зарплаты по запросу: {keyword}", fontsize=12, fontweight='bold')
-    plt.xlabel("Рубли")
+    plt.ylabel("Рубли")
+    plt.xlabel('Вакансии')
     plt.grid(axis='x', linestyle='--', alpha=0.6)
     plt.tight_layout()
     plt.show()
@@ -269,8 +277,6 @@ def main():
             pass
 
         elif key == '4':
-            keyword = input("Введите профессию: ")
-            data = []
             data = fetch_vacancies(keyword)
             get_graph(data, keyword)
 
