@@ -146,13 +146,13 @@ select
 from client c 
 cross join orders o;
 -- 12
-select City 
+select Name, City, Product 
 from student
 where City in (
-	select Otdel 
-    from manager
-    group by Otdel
-    Having sum(Sum) > 4000
+	select City
+    from student
+    group by City
+    Having sum(Sum) > 20000
 );
 -- 13
 select * 
