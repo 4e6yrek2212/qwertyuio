@@ -1,3 +1,11 @@
+create database if not exists bilet_db;
+use bilet_db;
+
+drop table if exists student;
+drop table if exists manager;
+drop table if exists client;
+drop table if exists orders;
+
 Create table if not exists student(
 	ID int primary key AUTO_INCREMENT,
     Name varchar(30),
@@ -220,13 +228,13 @@ group by Otdel;
 select * from test order by tot_am desc;
 -- 21
 start transaction;
-update manager set Sum = Sum + 2 where ID = 1;
-select * from manager where ID = 1;
+update student set Amount = Amount + 2 where ID = 1;
+select * from student where ID = 1;
 commit;
 -- 22
-set transaction isolation level repeatable read;
+set transaction isolation level read committed;
 start transaction;
-select * from manager where ID = 1;
+select * from student where ID = 1;
 commit;
 -- 23
 drop temporary table if exists temp_man;
@@ -237,7 +245,7 @@ select
 from manager
 group by Otdel;
 
-select * from temp_man where total_otd > 1000;
+select * from temp_man where total_otd > 25000;
 -- 24
 set @discount_rate = 0.10;
 select 
@@ -249,13 +257,13 @@ select
     IF(Sum >= 8000, "Крупный покупатель", "Обычный покупатель") as Status
 from student;
 -- 25
+drop procedure CalculateTopStudentsSum;
 DELIMITER //
-
-create procedure CalculateTopStudentsSum(IN max_id int, out total_sales int)
+CREATE PROCEDURE CalculateTopStudentsSum(IN max_id int, out total_sales int)
 begin
 	declare counter int default 1;
     declare current_sum int default 0;
-	
+
     set total_sales = 0;
     
     While counter <= max_id DO
